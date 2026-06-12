@@ -52,7 +52,9 @@ docker compose up --build
 |----------|-------------|---------|
 | `CLAUDE_API_KEY` | Clave de Anthropic | — |
 | `CLAUDE_MODEL` | Modelo de Claude | `claude-sonnet-4-20250514` |
-| `API_KEY` | Bearer token opcional para proteger endpoints | vacío |
+| `DATABASE_URL` | Conexión a base de datos | `sqlite+aiosqlite:///./unicornio.db` |
+| `JWT_SECRET` | Secreto para firmar tokens | — (obligatorio en producción) |
+| `API_KEY` | Bearer token legacy (deprecado) | vacío |
 | `DEBUG` | Modo debug | `false` |
 | `CORS_ORIGINS` | Orígenes permitidos (CSV) | `http://localhost:3000,http://localhost:5173` |
 | `RATE_LIMIT` | Límite de peticiones | `30/minute` |
@@ -62,6 +64,12 @@ docker compose up --build
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/api/v1/health` | Estado del servicio |
+| POST | `/api/v1/auth/register` | Registro de usuario |
+| POST | `/api/v1/auth/login` | Inicio de sesión (JWT) |
+| GET | `/api/v1/auth/me` | Perfil del usuario autenticado |
+| GET | `/api/v1/projects` | Listar proyectos del usuario |
+| POST | `/api/v1/projects` | Crear proyecto |
+| GET | `/api/v1/queries/history` | Historial de consultas IA |
 | POST | `/api/v1/architect/analyze` | Análisis de arquitectura |
 | POST | `/api/v1/refactor/code` | Refactor de código |
 | POST | `/api/v1/debug/solve` | Resolución de errores |

@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
-import { api, checkHealth } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import {
+  api,
+  checkHealth,
+  clearToken,
+  fetchHistory,
+  fetchMe,
+  getToken,
+} from "./api";
+import AuthScreen from "./AuthScreen";
+import HistoryPanel from "./HistoryPanel";
 import "./App.css";
 
 const TABS = [
@@ -61,29 +70,68 @@ const TABS = [
 ];
 
 function emptyForm(tab) {
-  return Object.fromEntries(
-    tab.fields.map((field) => [field.name, field.defaultValue || ""]),
-  );
+  return Object.fromEntries(tab.fields.map((field) => [field.name, field.defaultValue || ""]));
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [booting, setBooting] = useState(true);
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [form, setForm] = useState(emptyForm(TABS[0]));
-  const [apiKey, setApiKey] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [health, setHealth] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeHistoryId, setActiveHistoryId] = useState(null);
+
+  const loadSession = useCallback(async () => {
+    if (!getToken()) {
+      setUser(null);
+      setBooting(false);
+      return;
+    }
+    try {
+      const me = await fetchMe();
+      setUser(me);
+      const items = await fetchHistory();
+      setHistory(items);
+    } catch {
+      clearToken();
+      setUser(null);
+    } finally {
+      setBooting(false);
+    }
+  }, []);
 
   useEffect(() => {
     checkHealth()
       .then(setHealth)
       .catch(() => setHealth({ status: "offline" }));
-  }, []);
+    loadSession();
+  }, [loadSession]);
 
   function selectTab(tab) {
     setActiveTab(tab);
     setForm(emptyForm(tab));
+    setResult("");
+    setError("");
+    setActiveHistoryId(null);
+  }
+
+  function handleHistorySelect(item) {
+    const tab = TABS.find((t) => t.id === item.module) || TABS[0];
+    setActiveTab(tab);
+    setForm(item.input_data);
+    setResult(item.output_text);
+    setError("");
+    setActiveHistoryId(item.id);
+  }
+
+  function handleLogout() {
+    clearToken();
+    setUser(null);
+    setHistory([]);
     setResult("");
     setError("");
   }
@@ -93,10 +141,13 @@ export default function App() {
     setLoading(true);
     setError("");
     setResult("");
+    setActiveHistoryId(null);
 
     try {
-      const data = await activeTab.action(form, apiKey);
+      const data = await activeTab.action(form);
       setResult(data[activeTab.resultKey] || JSON.stringify(data, null, 2));
+      const items = await fetchHistory();
+      setHistory(items);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -104,34 +155,55 @@ export default function App() {
     }
   }
 
+  if (booting) {
+    return <div className="app loading-screen">Cargando...</div>;
+  }
+
+  if (!user) {
+    return <AuthScreen onSuccess={loadSession} />;
+  }
+
   return (
     <div className="app">
       <header className="hero">
         <div>
-          <p className="eyebrow">Unicornio Dev v1.0.0</p>
-          <h1>Asistente de desarrollo con IA</h1>
+          <p className="eyebrow">Unicornio Dev v1.1.0</p>
+          <h1>Hola, {user.name}</h1>
           <p className="subtitle">
-            Arquitectura, refactor, debug, seguridad y performance en una sola interfaz.
+            Plan {user.plan} · {user.email}
           </p>
         </div>
-        <div className={`status ${health?.status === "healthy" ? "ok" : "warn"}`}>
-          API: {health?.status || "conectando..."}
-          {health?.claude_configured === false && " · Claude sin configurar"}
+        <div className="hero-actions">
+          <div className={`status ${health?.status === "healthy" ? "ok" : "warn"}`}>
+            API: {health?.status || "conectando..."}
+            {health?.claude_configured === false && " · Claude sin configurar"}
+          </div>
+          <button type="button" className="ghost-btn" onClick={handleLogout}>
+            Salir
+          </button>
         </div>
       </header>
 
-      <main className="layout">
+      <main className="layout layout-wide">
         <aside className="sidebar">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={tab.id === activeTab.id ? "tab active" : "tab"}
-              onClick={() => selectTab(tab)}
-              type="button"
-            >
-              {tab.label}
-            </button>
-          ))}
+          <div className="sidebar-section">
+            <p className="sidebar-label">Herramientas</p>
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                className={tab.id === activeTab.id ? "tab active" : "tab"}
+                onClick={() => selectTab(tab)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <HistoryPanel
+            items={history}
+            onSelect={handleHistorySelect}
+            activeId={activeHistoryId}
+          />
         </aside>
 
         <section className="panel">
@@ -141,16 +213,6 @@ export default function App() {
           </div>
 
           <form onSubmit={handleSubmit} className="form">
-            <label className="field">
-              API Key (opcional)
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Bearer token si está habilitado en el backend"
-              />
-            </label>
-
             {activeTab.fields.map((field) => (
               <label key={field.name} className="field">
                 {field.label}

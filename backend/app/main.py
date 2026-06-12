@@ -11,6 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.config import get_settings
+from app.database import init_db
 from app.routers import api_router
 from app.schemas.responses import ErrorResponse
 
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        await init_db()
         logger.info("Iniciando %s v%s", settings.APP_NAME, settings.APP_VERSION)
         yield
         logger.info("Apagando %s", settings.APP_NAME)

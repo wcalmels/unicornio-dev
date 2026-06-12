@@ -11,8 +11,13 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Unicornio Dev API"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "1.1.0"
     DEBUG: bool = False
+
+    DATABASE_URL: str = "sqlite+aiosqlite:///./unicornio.db"
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     CLAUDE_API_KEY: str = ""
     CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
