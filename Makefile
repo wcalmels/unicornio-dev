@@ -1,17 +1,17 @@
 .PHONY: install test lint format run docker-up docker-down frontend
 
 install:
-	cd backend && pip install -r requirements/dev.txt
+	cd backend && pip install -r requirements/dev.txt && pip install -e . --no-deps
 	cd frontend && npm install
 
 test:
 	cd backend && pytest tests/ -v
 
 lint:
-	cd backend && ruff check app tests && black --check app tests
+	cd backend && ruff check app cli tests && black --check app cli tests
 
 format:
-	cd backend && black app tests && ruff check --fix app tests
+	cd backend && black app cli tests && ruff check --fix app cli tests
 
 run:
 	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

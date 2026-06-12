@@ -24,9 +24,9 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements/dev.txt
 
-      - run: pip install -r requirements/dev.txt
-      - run: ruff check app tests
-      - run: black --check app tests
+      - run: pip install -r requirements/dev.txt && pip install -e . --no-deps
+      - run: ruff check app cli tests
+      - run: black --check app cli tests
       - run: pytest tests/ --cov-fail-under=80
 
   test-frontend:

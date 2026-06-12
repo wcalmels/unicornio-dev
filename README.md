@@ -76,6 +76,46 @@ docker compose up --build
 | POST | `/api/v1/security/audit` | Auditoría de seguridad |
 | POST | `/api/v1/performance/analyze` | Análisis de performance |
 
+## CLI (Fase 2)
+
+Instala el comando `unicornio` en tu terminal:
+
+```bash
+cd backend
+pip install -r requirements/dev.txt
+pip install -e . --no-deps    # registra el comando `unicornio`
+# Alternativa sin instalar: python -m cli
+```
+
+### Configuración
+
+```bash
+unicornio config --api-url http://localhost:8000
+unicornio register          # o unicornio login
+unicornio whoami
+```
+
+### Comandos
+
+```bash
+unicornio architect "Mi App" --description "API REST de tareas"
+unicornio refactor src/auth.py
+unicornio refactor ./backend          # carpeta completa
+unicornio debug --error "KeyError: id" --file src/main.py
+unicornio audit src/
+unicornio performance src/handlers.py
+unicornio history --limit 10
+unicornio logout
+```
+
+Variables de entorno:
+
+| Variable | Descripción |
+|----------|-------------|
+| `UNICORNIO_API_URL` | URL de la API (alternativa a `unicornio config`) |
+
+El token JWT se guarda en `~/.unicornio/config.json`.
+
 ## Desarrollo
 
 ```bash
