@@ -1,0 +1,130 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements/dev.txt
+
+      - run: pip install -r requirements/dev.txt
+      - run: ruff check app tests
+      - run: black --check app tests
+      - run: pytest tests/ --cov-fail-under=80
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'http://localhost:8000' }}
+
+  deploy-backend-fly:
+    name: Deploy API (Fly.io)
+    needs: [test-backend, test-frontend]
+    if: vars.ENABLE_FLY_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Set Fly secrets
+        run: |
+          args=()
+          [ -n "${{ secrets.CLAUDE_API_KEY }}" ] && args+=(CLAUDE_API_KEY="${{ secrets.CLAUDE_API_KEY }}")
+          [ -n "${{ secrets.API_KEY }}" ] && args+=(API_KEY="${{ secrets.API_KEY }}")
+          [ -n "${{ vars.CORS_ORIGINS }}" ] && args+=(CORS_ORIGINS="${{ vars.CORS_ORIGINS }}")
+          if [ ${#args[@]} -gt 0 ]; then
+            flyctl secrets set "${args[@]}" --stage
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-render-hooks:
+    name: Deploy (Render hooks)
+    needs: [test-backend, test-frontend]
+    if: vars.ENABLE_RENDER_HOOKS == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render API deploy
+        if: secrets.RENDER_DEPLOY_HOOK_API != ''
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
+
+      - name: Trigger Render frontend deploy
+        if: secrets.RENDER_DEPLOY_HOOK_FRONTEND != ''
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"
+
+  deploy-frontend-pages:
+    name: Deploy UI (GitHub Pages)
+    needs: [test-backend, test-frontend]
+    if: vars.ENABLE_GITHUB_PAGES == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

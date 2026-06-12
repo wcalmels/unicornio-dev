@@ -84,6 +84,65 @@ make frontend  # frontend en modo desarrollo
 - No subas `.env` al repositorio.
 - Rota cualquier credencial que haya quedado expuesta en remotos git.
 
+## Deploy automático
+
+Cada push a `main` ejecuta tests y, si pasan, despliega según la plataforma que actives.
+
+### Opción A — Render (recomendada, más simple)
+
+1. Crea cuenta en [render.com](https://render.com)
+2. Ve a **New → Blueprint** y conecta este repositorio
+3. Render leerá `render.yaml` y creará:
+   - **unicornio-api** — backend Docker
+   - **unicornio-dev** — frontend estático
+4. En el dashboard, agrega el secret `CLAUDE_API_KEY` (y `API_KEY` si quieres auth)
+5. Cada push a `main` redespliega automáticamente
+
+### Opción B — Fly.io + GitHub Pages (vía GitHub Actions)
+
+En **Settings → Secrets and variables → Actions**:
+
+**Secrets:**
+| Secret | Descripción |
+|--------|-------------|
+| `FLY_API_TOKEN` | Token de [fly.io/user/tokens](https://fly.io/user/tokens) |
+| `CLAUDE_API_KEY` | Clave de Anthropic |
+| `API_KEY` | (opcional) Bearer token de la API |
+
+**Variables:**
+| Variable | Valor |
+|----------|-------|
+| `ENABLE_FLY_DEPLOY` | `true` |
+| `ENABLE_GITHUB_PAGES` | `true` |
+| `VITE_API_URL` | `https://unicornio-api.fly.dev` |
+| `CORS_ORIGINS` | `https://wcalmels.github.io` |
+
+Primera vez en Fly.io:
+
+```bash
+cd backend
+fly auth login
+fly launch --no-deploy --copy-config --name unicornio-api
+fly secrets set CLAUDE_API_KEY=tu-clave
+```
+
+Habilita GitHub Pages en **Settings → Pages → Source: GitHub Actions**.
+
+### Opción C — Render con deploy hooks
+
+Si ya tienes servicios en Render, activa hooks en GitHub Actions:
+
+| Variable | Valor |
+|----------|-------|
+| `ENABLE_RENDER_HOOKS` | `true` |
+
+| Secret | Descripción |
+|--------|-------------|
+| `RENDER_DEPLOY_HOOK_API` | Deploy hook del servicio API |
+| `RENDER_DEPLOY_HOOK_FRONTEND` | Deploy hook del frontend |
+
+Los hooks están en Render → tu servicio → **Settings → Deploy Hook**.
+
 ## Licencia
 
 MIT

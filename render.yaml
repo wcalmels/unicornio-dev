@@ -1,0 +1,42 @@
+# Blueprint de Render: https://dashboard.render.com/select-repo?type=blueprint
+
+services:
+  - type: web
+    name: unicornio-api
+    runtime: docker
+    region: oregon
+    plan: free
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: CLAUDE_API_KEY
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: unicornio-dev
+          property: url
+
+  - type: web
+    name: unicornio-dev
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: unicornio-api
+          envVarKey: RENDER_EXTERNAL_URL
