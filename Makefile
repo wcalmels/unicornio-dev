@@ -19,6 +19,12 @@ run:
 frontend:
 	cd frontend && npm run dev
 
+extension:
+	cd extension && npm install && npm run compile
+
+extension-dev:
+	cd extension && npm run watch
+
 docker-up:
 	docker compose up --build
 

@@ -131,6 +131,20 @@ unicornio architect "Mi App" -d "descripción" --path ./backend
 | POST | `/api/v2/analyze` | Análisis con múltiples archivos |
 | POST | `/api/v2/analyze/stream` | Igual, con respuesta SSE en tiempo real |
 
+## Extensión VS Code / Cursor (Fase 4)
+
+```bash
+cd extension
+npm install
+npm run compile
+# En VS Code: F5 para abrir ventana de desarrollo
+```
+
+- Panel lateral con login, herramientas e historial
+- Clic derecho → refactorizar selección
+- Comandos: `Unicornio: Refactorizar archivo`, etc.
+- Configura `unicornio.apiUrl` en Settings
+
 ## Desarrollo
 
 ```bash

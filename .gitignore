@@ -6,6 +6,7 @@ htmlcov/
 venv/
 .env
 node_modules/
+extension/out/
 build/
 dist/
 frontend/dist/

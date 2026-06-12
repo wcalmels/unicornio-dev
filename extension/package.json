@@ -1,0 +1,115 @@
+{
+  "name": "unicornio-dev",
+  "displayName": "Unicornio Dev",
+  "description": "Asistente de desarrollo con IA — arquitectura, refactor, debug, seguridad y performance.",
+  "version": "1.2.0",
+  "publisher": "unicornio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "Machine Learning"],
+  "activationEvents": ["onView:unicornio.sidebar"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Unicornio Dev",
+      "properties": {
+        "unicornio.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "URL base de la API de Unicornio Dev"
+        },
+        "unicornio.useStreaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Usar streaming SSE para respuestas en tiempo real"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "unicornio",
+          "title": "Unicornio Dev",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "unicornio": [
+        {
+          "type": "webview",
+          "id": "unicornio.sidebar",
+          "name": "Asistente IA"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "unicornio.showPanel",
+        "title": "Unicornio: Abrir panel",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.login",
+        "title": "Unicornio: Iniciar sesión",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.logout",
+        "title": "Unicornio: Cerrar sesión",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.refactorSelection",
+        "title": "Unicornio: Refactorizar selección",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.refactorFile",
+        "title": "Unicornio: Refactorizar archivo",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.auditFile",
+        "title": "Unicornio: Auditar seguridad del archivo",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.performanceFile",
+        "title": "Unicornio: Analizar performance del archivo",
+        "category": "Unicornio"
+      },
+      {
+        "command": "unicornio.debugSelection",
+        "title": "Unicornio: Debug con selección",
+        "category": "Unicornio"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "unicornio.refactorSelection",
+          "when": "editorHasSelection",
+          "group": "unicornio@1"
+        },
+        {
+          "command": "unicornio.debugSelection",
+          "when": "editorHasSelection",
+          "group": "unicornio@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npm run compile && vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.10",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.7.2"
+  }
+}
