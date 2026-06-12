@@ -11,64 +11,57 @@ export async function ensureApi(auth: AuthStore): Promise<UnicornioApi> {
   return new UnicornioApi(token, getApiUrl());
 }
 
-export async function runAnalyze(
-  auth: AuthStore,
-  payload: AnalyzePayload,
-  title: string,
-): Promise<string> {
-  const api = await ensureApi(auth);
-  const stream = useStreaming();
-  let result = "";
-
-  if (stream) {
-    const channel = getOutputChannel();
-    channel.clear();
-    channel.show(true);
-    channel.appendLine(`=== ${title} ===\n`);
-
-    result = await api.analyzeStream(payload, (chunk) => {
-      channel.append(chunk);
-    });
-    channel.appendLine("\n");
-  } else {
-    result = await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `Unicornio: ${title}`,
-        cancellable: false,
-      },
-      async () => api.analyze(payload),
-    );
-    await showResultDocument(title, result);
-  }
-
-  return result;
+export interface AnalyzeOptions {
+  content?: string;
+  filePath?: string;
+  error?: string;
+  context?: string;
+  projectName?: string;
+  description?: string;
 }
 
-export async function analyzeEditorContent(
-  auth: AuthStore,
+export function buildAnalyzePayload(
   module: ModuleType,
-  options?: {
-    content?: string;
-    filePath?: string;
-    error?: string;
-    context?: string;
-    projectName?: string;
-    description?: string;
-  },
-): Promise<string> {
+  options?: AnalyzeOptions,
+): AnalyzePayload {
   const editor = vscode.window.activeTextEditor;
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  const content = options?.content ?? editor?.document.getText(editor.selection);
-  const filePath = options?.filePath ?? editor?.document.uri.fsPath;
+  let content = options?.content;
+  let filePath = options?.filePath;
+
+  if (content === undefined && editor) {
+    if (module === "refactor") {
+      content = editor.document.getText(editor.selection) || editor.document.getText();
+      filePath = editor.document.uri.fsPath;
+    } else if (module === "security" || module === "performance") {
+      content = editor.document.getText();
+      filePath = editor.document.uri.fsPath;
+    } else if (module === "debug") {
+      const selection = editor.document.getText(editor.selection);
+      if (selection) {
+        content = selection;
+        filePath = editor.document.uri.fsPath;
+      }
+    }
+  }
 
   if (!content && module !== "architect") {
-    throw new Error("No hay texto seleccionado ni archivo activo.");
+    if (module === "debug" && options?.error) {
+      // debug puede ejecutarse solo con el mensaje de error del formulario
+    } else if (module === "security" || module === "performance") {
+      throw new Error("Abre un archivo para analizar.");
+    } else if (module === "refactor") {
+      throw new Error("Selecciona código o abre un archivo.");
+    } else if (module === "debug") {
+      throw new Error("Describe el error o selecciona código con contexto.");
+    } else {
+      throw new Error("No hay texto seleccionado ni archivo activo.");
+    }
   }
 
   const language = filePath ? detectLanguage(filePath) : "text";
-  const payload: AnalyzePayload = {
+  return {
     module,
     files: content
       ? [
@@ -87,16 +80,73 @@ export async function analyzeEditorContent(
       extra: options?.context ?? "",
     },
   };
+}
 
-  const titles: Record<ModuleType, string> = {
-    architect: "Arquitectura",
-    refactor: "Refactor",
-    debug: "Debug",
-    security: "Seguridad",
-    performance: "Performance",
-  };
+export async function executeAnalyze(
+  auth: AuthStore,
+  payload: AnalyzePayload,
+  onChunk?: (chunk: string) => void,
+): Promise<string> {
+  const api = await ensureApi(auth);
 
-  return runAnalyze(auth, payload, titles[module]);
+  if (useStreaming()) {
+    if (onChunk) {
+      return api.analyzeStream(payload, onChunk);
+    }
+
+    const channel = getOutputChannel();
+    channel.clear();
+    channel.show(true);
+    const title = MODULE_TITLES[payload.module];
+    channel.appendLine(`=== ${title} ===\n`);
+    const result = await api.analyzeStream(payload, (chunk) => channel.append(chunk));
+    channel.appendLine("\n");
+    return result;
+  }
+
+  if (onChunk) {
+    return api.analyze(payload);
+  }
+
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: `Unicornio: ${MODULE_TITLES[payload.module]}`,
+      cancellable: false,
+    },
+    async () => api.analyze(payload),
+  );
+}
+
+const MODULE_TITLES: Record<ModuleType, string> = {
+  architect: "Arquitectura",
+  refactor: "Refactor",
+  debug: "Debug",
+  security: "Seguridad",
+  performance: "Performance",
+};
+
+export async function runAnalyze(
+  auth: AuthStore,
+  payload: AnalyzePayload,
+  title: string,
+): Promise<string> {
+  const result = await executeAnalyze(auth, payload);
+
+  if (!useStreaming()) {
+    await showResultDocument(title, result);
+  }
+
+  return result;
+}
+
+export async function analyzeEditorContent(
+  auth: AuthStore,
+  module: ModuleType,
+  options?: AnalyzeOptions,
+): Promise<string> {
+  const payload = buildAnalyzePayload(module, options);
+  return runAnalyze(auth, payload, MODULE_TITLES[module]);
 }
 
 export async function analyzeActiveFile(auth: AuthStore, module: ModuleType): Promise<string> {

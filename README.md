@@ -145,6 +145,13 @@ npm run compile
 - Comandos: `Unicornio: Refactorizar archivo`, etc.
 - Configura `unicornio.apiUrl` en Settings
 
+### Benchmarks
+
+```bash
+make benchmark          # overhead API (mock LLM, 30 iteraciones)
+make benchmark-live     # Claude real (3 iteraciones, requiere CLAUDE_API_KEY)
+```
+
 ## Desarrollo
 
 ```bash

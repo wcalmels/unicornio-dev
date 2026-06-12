@@ -1,4 +1,4 @@
-.PHONY: install test lint format run docker-up docker-down frontend
+.PHONY: install test lint format run benchmark docker-up docker-down frontend
 
 install:
 	cd backend && pip install -r requirements/dev.txt && pip install -e . --no-deps
@@ -6,6 +6,12 @@ install:
 
 test:
 	cd backend && pytest tests/ -v
+
+benchmark:
+	cd backend && py -m benchmarks.run -n 30
+
+benchmark-live:
+	cd backend && py -m benchmarks.run --live -n 3
 
 lint:
 	cd backend && ruff check app cli tests && black --check app cli tests

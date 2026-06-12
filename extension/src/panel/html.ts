@@ -74,6 +74,15 @@ export function getWebviewHtml(): string {
       padding: 8px;
       background: var(--vscode-textCodeBlock-background);
     }
+    #result.streaming {
+      border-color: var(--vscode-focusBorder);
+    }
+    .status {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 6px;
+    }
+    .status.active { color: var(--vscode-progressBar-background, #007acc); }
     .history-item {
       padding: 8px;
       border-bottom: 1px solid var(--vscode-widget-border);
@@ -113,6 +122,7 @@ export function getWebviewHtml(): string {
 
     <div class="card">
       <h3>Resultado</h3>
+      <p id="runStatus" class="status hidden"></p>
       <div id="result">Sin resultados aún.</div>
     </div>
 
@@ -134,8 +144,9 @@ export function getWebviewHtml(): string {
         { name: "hint", label: "Usa la selección del editor o el archivo activo", type: "note" },
       ]},
       { id: "debug", label: "Debug", fields: [
-        { name: "error", label: "Error", type: "textarea" },
-        { name: "context", label: "Contexto", type: "textarea" },
+        { name: "error", label: "Error (requerido)", type: "textarea" },
+        { name: "context", label: "Contexto adicional", type: "textarea" },
+        { name: "hint", label: "Opcional: selecciona código en el editor para incluirlo", type: "note" },
       ]},
       { id: "security", label: "Seguridad", fields: [
         { name: "hint", label: "Analiza el archivo activo", type: "note" },
@@ -147,6 +158,37 @@ export function getWebviewHtml(): string {
 
     let activeTab = TABS[0];
     let form = {};
+    let isRunning = false;
+
+    function setRunning(running) {
+      isRunning = running;
+      const btn = document.getElementById("runBtn");
+      btn.disabled = running;
+      btn.textContent = running ? "Procesando..." : "Ejecutar";
+    }
+
+    function setStatus(text, active) {
+      const el = document.getElementById("runStatus");
+      if (!text) {
+        el.classList.add("hidden");
+        el.textContent = "";
+        el.classList.remove("active");
+        return;
+      }
+      el.textContent = text;
+      el.classList.remove("hidden");
+      el.classList.toggle("active", !!active);
+    }
+
+    function appendChunk(text) {
+      const el = document.getElementById("result");
+      if (el.textContent === "Procesando..." || el.textContent === "Sin resultados aún.") {
+        el.textContent = "";
+      }
+      el.textContent += text;
+      el.classList.add("streaming");
+      el.scrollTop = el.scrollHeight;
+    }
 
     function post(type, payload = {}) {
       vscode.postMessage({ type, ...payload });
@@ -242,7 +284,10 @@ export function getWebviewHtml(): string {
     };
 
     document.getElementById("logoutBtn").onclick = () => post("logout");
-    document.getElementById("runBtn").onclick = () => post("run", { module: activeTab.id, form });
+    document.getElementById("runBtn").onclick = () => {
+      if (isRunning) return;
+      post("run", { module: activeTab.id, form });
+    };
 
     window.addEventListener("message", (event) => {
       const msg = event.data;
@@ -257,18 +302,28 @@ export function getWebviewHtml(): string {
         const el = document.getElementById("runError");
         el.textContent = msg.message;
         el.classList.remove("hidden");
+        setRunning(false);
+        setStatus("");
+        document.getElementById("result").classList.remove("streaming");
       }
       if (msg.type === "runStart") {
         document.getElementById("runError").classList.add("hidden");
         document.getElementById("result").textContent = "Procesando...";
+        document.getElementById("result").classList.remove("streaming");
+        setRunning(true);
+        setStatus("Recibiendo respuesta en tiempo real...", true);
       }
       if (msg.type === "runChunk") {
-        const el = document.getElementById("result");
-        if (el.textContent === "Procesando...") el.textContent = "";
-        el.textContent += msg.text;
+        appendChunk(msg.text);
       }
       if (msg.type === "runComplete") {
-        document.getElementById("result").textContent = msg.result;
+        const el = document.getElementById("result");
+        if (!el.classList.contains("streaming")) {
+          el.textContent = msg.result;
+        }
+        el.classList.remove("streaming");
+        setRunning(false);
+        setStatus("");
         post("loadHistory");
       }
       if (msg.type === "history") renderHistory(msg.items || []);
