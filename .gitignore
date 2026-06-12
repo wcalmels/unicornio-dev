@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .coverage
 htmlcov/
+*.egg-info/
 venv/
 .env
 node_modules/
