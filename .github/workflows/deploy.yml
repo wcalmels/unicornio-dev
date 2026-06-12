@@ -46,7 +46,7 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'http://localhost:8000' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
 
   deploy-backend-fly:
     name: Deploy API (Fly.io)
@@ -84,13 +84,13 @@ jobs:
     if: vars.ENABLE_RENDER_HOOKS == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render API deploy
-        if: secrets.RENDER_DEPLOY_HOOK_API != ''
-        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
-
-      - name: Trigger Render frontend deploy
-        if: secrets.RENDER_DEPLOY_HOOK_FRONTEND != ''
-        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"
+      - name: Trigger Render deploys
+        env:
+          HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+          HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+        run: |
+          [ -n "$HOOK_API" ] && curl -fsS -X POST "$HOOK_API"
+          [ -n "$HOOK_FRONTEND" ] && curl -fsS -X POST "$HOOK_FRONTEND"
 
   deploy-frontend-pages:
     name: Deploy UI (GitHub Pages)
