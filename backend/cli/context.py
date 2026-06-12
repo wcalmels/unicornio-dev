@@ -1,30 +1,11 @@
 from pathlib import Path
 
-MAX_FILE_BYTES = 50_000
-MAX_TOTAL_BYTES = 50_000
-
-CODE_EXTENSIONS = {
-    ".py": "python",
-    ".js": "javascript",
-    ".jsx": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".go": "go",
-    ".rs": "rust",
-    ".java": "java",
-    ".rb": "ruby",
-    ".php": "php",
-    ".cs": "csharp",
-    ".cpp": "cpp",
-    ".c": "c",
-    ".h": "c",
-    ".sql": "sql",
-    ".sh": "bash",
-    ".yaml": "yaml",
-    ".yml": "yaml",
-    ".json": "json",
-    ".md": "markdown",
-}
+from app.services.context import (
+    CODE_EXTENSIONS,
+    MAX_FILE_BYTES,
+    bundle_file_contents,
+    detect_language_from_path,
+)
 
 SKIP_DIRS = {
     ".git",
@@ -40,7 +21,7 @@ SKIP_DIRS = {
 
 
 def detect_language(path: Path) -> str:
-    return CODE_EXTENSIONS.get(path.suffix.lower(), "text")
+    return detect_language_from_path(str(path))
 
 
 def read_text_file(path: Path, max_bytes: int = MAX_FILE_BYTES) -> str:
@@ -87,34 +68,61 @@ def collect_source_files(path: Path) -> list[Path]:
     return files
 
 
-def bundle_sources(path: Path, root: Path | None = None) -> tuple[str, str]:
+def bundle_sources(path: Path, root: Path | None = None) -> tuple[str, str, list[dict[str, str]]]:
     root = root or (path if path.is_dir() else path.parent)
     files = collect_source_files(path)
 
     if not files:
         raise ValueError(f"No se encontraron archivos de código en {path}")
 
-    chunks: list[str] = []
-    total = 0
-    primary_language = detect_language(files[0])
-
-    for file_path in files:
-        content = read_text_file(file_path)
-        header = f"# File: {file_path.relative_to(root)}"
-        block = f"{header}\n{content}\n"
-        if total + len(block) > MAX_TOTAL_BYTES:
-            remaining = MAX_TOTAL_BYTES - total
-            if remaining <= 0:
-                break
-            block = block[:remaining]
-        chunks.append(block)
-        total += len(block)
-        if total >= MAX_TOTAL_BYTES:
-            break
-
+    file_payloads = [
+        {"path": str(file_path.relative_to(root)), "content": read_text_file(file_path)}
+        for file_path in files
+    ]
+    code = bundle_file_contents(file_payloads)
     tree = project_tree(root) if path.is_dir() else ""
-    language = primary_language
-    code = "\n".join(chunks)
+    language = detect_language(files[0])
+
     if tree:
         code = f"Project tree:\n{tree}\n\n{code}"
-    return code, language
+
+    return code, language, file_payloads
+
+
+def build_v2_payload(
+    module: str,
+    path: Path,
+    *,
+    error: str = "",
+    context: str = "",
+    project_name: str = "",
+    description: str = "",
+) -> dict:
+    resolved = path.resolve()
+    root = resolved if resolved.is_dir() else resolved.parent
+    code, language, file_payloads = bundle_sources(resolved, root=root)
+    tree = project_tree(root) if resolved.is_dir() else ""
+
+    payload = {
+        "module": module,
+        "files": file_payloads,
+        "context": {
+            "project_root": str(root),
+            "language": language,
+            "tree": tree,
+            "project_name": project_name,
+            "description": description,
+            "error": error,
+            "extra": context,
+        },
+    }
+
+    if module == "debug" and resolved.is_file():
+        payload["context"]["extra"] = (
+            f"{context}\n\nArchivo {resolved.name}:\n```\n{read_text_file(resolved)}\n```"
+        ).strip()
+
+    if not file_payloads and module != "architect":
+        payload["files"] = [{"path": str(resolved.name), "content": code}]
+
+    return payload

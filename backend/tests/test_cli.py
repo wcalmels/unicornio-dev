@@ -30,9 +30,10 @@ def test_detect_language():
 def test_bundle_sources_single_file(tmp_path):
     source = tmp_path / "sample.py"
     source.write_text("def foo():\n    pass\n", encoding="utf-8")
-    code, language = bundle_sources(source)
+    code, language, files = bundle_sources(source)
     assert language == "python"
     assert "def foo():" in code
+    assert len(files) == 1
 
 
 def test_project_tree(tmp_path):
@@ -87,7 +88,7 @@ def test_refactor_with_auth(runner, config_file, tmp_path):
 
     with patch("cli.main.UnicornioClient") as mock_cls:
         instance = mock_cls.return_value
-        instance.refactor.return_value = "código mejorado"
+        instance.analyze_v2.return_value = "código mejorado"
         result = runner.invoke(
             __import__("cli.main", fromlist=["app"]).app,
             ["refactor", str(source)],
@@ -95,10 +96,10 @@ def test_refactor_with_auth(runner, config_file, tmp_path):
 
     assert result.exit_code == 0
     assert "código mejorado" in result.stdout
-    instance.refactor.assert_called_once()
-    sent_code, sent_lang = instance.refactor.call_args[0]
-    assert sent_lang == "python"
-    assert "x=1" in sent_code
+    instance.analyze_v2.assert_called_once()
+    payload = instance.analyze_v2.call_args[0][0]
+    assert payload["module"] == "refactor"
+    assert payload["files"][0]["content"] == "x=1"
 
 
 def test_config_command(runner, config_file):

@@ -13,6 +13,7 @@ from slowapi.util import get_remote_address
 from app.config import get_settings
 from app.database import init_db
 from app.routers import api_router
+from app.routers.ai_v2 import router as api_v2_router
 from app.schemas.responses import ErrorResponse
 
 logger = logging.getLogger("unicornio")
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(api_router)
+    app.include_router(api_v2_router)
     return app
 
 

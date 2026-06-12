@@ -116,6 +116,21 @@ Variables de entorno:
 
 El token JWT se guarda en `~/.unicornio/config.json`.
 
+### API v2 (Fase 3)
+
+Endpoint unificado con múltiples archivos y streaming:
+
+```bash
+# El CLI usa v2 automáticamente para comandos con archivos
+unicornio refactor src/auth.py --stream
+unicornio architect "Mi App" -d "descripción" --path ./backend
+```
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/v2/analyze` | Análisis con múltiples archivos |
+| POST | `/api/v2/analyze/stream` | Igual, con respuesta SSE en tiempo real |
+
 ## Desarrollo
 
 ```bash

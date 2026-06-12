@@ -167,7 +167,7 @@ export default function App() {
     <div className="app">
       <header className="hero">
         <div>
-          <p className="eyebrow">Unicornio Dev v1.1.0</p>
+          <p className="eyebrow">Unicornio Dev v1.2.0</p>
           <h1>Hola, {user.name}</h1>
           <p className="subtitle">
             Plan {user.plan} · {user.email}

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Unicornio Dev API"
-    APP_VERSION: str = "1.1.0"
+    APP_VERSION: str = "1.2.0"
     DEBUG: bool = False
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./unicornio.db"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unicornio-dev"
-version = "1.1.0"
+version = "1.2.0"
 description = "Asistente de desarrollo con IA — API y CLI"
 requires-python = ">=3.11"
 dependencies = [

@@ -7,7 +7,7 @@ from rich.table import Table
 
 from cli.api_client import ApiError, UnicornioClient
 from cli.config import clear_token, get_api_url, get_token, save_config
-from cli.context import bundle_sources, read_text_file
+from cli.context import build_v2_payload
 
 app = typer.Typer(
     name="unicornio",
@@ -28,6 +28,50 @@ def _client() -> UnicornioClient:
 def _print_result(title: str, content: str) -> None:
     console.print(f"\n[bold cyan]{title}[/bold cyan]\n")
     console.print(Markdown(content))
+
+
+def _run_v2(
+    module: str,
+    *,
+    path: Path | None = None,
+    stream: bool = False,
+    project_name: str = "",
+    description: str = "",
+    error: str = "",
+    context: str = "",
+    language: str | None = None,
+) -> str:
+    client = _client()
+
+    if path:
+        payload = build_v2_payload(
+            module,
+            path.resolve(),
+            error=error,
+            context=context,
+            project_name=project_name,
+            description=description,
+        )
+    else:
+        payload = {
+            "module": module,
+            "files": [],
+            "context": {
+                "project_name": project_name,
+                "description": description,
+                "error": error,
+                "extra": context,
+                "language": language or "python",
+            },
+        }
+
+    if language:
+        payload["context"]["language"] = language
+
+    if stream:
+        console.print("[dim]Streaming respuesta...[/dim]\n")
+        return client.analyze_v2_stream(payload)
+    return client.analyze_v2(payload)
 
 
 @app.command()
@@ -97,30 +141,41 @@ def config(
 def architect(
     project: str = typer.Argument(..., help="Nombre del proyecto"),
     description: str = typer.Option(..., "--description", "-d", help="Descripción del proyecto"),
+    path: Path | None = typer.Option(
+        None, "--path", "-p", help="Carpeta con contexto del proyecto"
+    ),
+    stream: bool = typer.Option(False, "--stream", help="Respuesta en streaming"),
 ) -> None:
     """Analiza requisitos y propone arquitectura."""
     try:
-        result = _client().architect(project, description)
-    except ApiError as exc:
+        result = _run_v2(
+            "architect",
+            path=path,
+            stream=stream,
+            project_name=project,
+            description=description,
+        )
+    except (ApiError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    _print_result("Análisis de arquitectura", result)
+    if not stream:
+        _print_result("Análisis de arquitectura", result)
 
 
 @app.command()
 def refactor(
     path: Path = typer.Argument(..., help="Archivo o directorio"),
     language: str | None = typer.Option(None, "--language", "-l", help="Lenguaje del código"),
+    stream: bool = typer.Option(False, "--stream", help="Respuesta en streaming"),
 ) -> None:
     """Refactoriza código desde un archivo o carpeta."""
     try:
-        code, detected = bundle_sources(path.resolve())
-        lang = language or detected
-        result = _client().refactor(code, lang)
+        result = _run_v2("refactor", path=path, stream=stream, language=language)
     except (ApiError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    _print_result(f"Refactor ({path})", result)
+    if not stream:
+        _print_result(f"Refactor ({path})", result)
 
 
 @app.command()
@@ -128,54 +183,58 @@ def debug(
     error: str = typer.Option(..., "--error", "-e", help="Mensaje de error"),
     context: str = typer.Option("", "--context", "-c", help="Contexto adicional"),
     file: Path | None = typer.Option(None, "--file", "-f", help="Archivo relacionado"),
+    stream: bool = typer.Option(False, "--stream", help="Respuesta en streaming"),
 ) -> None:
     """Diagnostica un error."""
-    extra = context
-    if file:
-        if not file.exists():
-            console.print(f"[red]Archivo no encontrado: {file}[/red]")
-            raise typer.Exit(1)
-        content = read_text_file(file.resolve())
-        extra = f"{context}\n\nArchivo {file}:\n```\n{content}\n```".strip()
+    if file and not file.exists():
+        console.print(f"[red]Archivo no encontrado: {file}[/red]")
+        raise typer.Exit(1)
 
     try:
-        result = _client().debug(error, extra)
+        result = _run_v2(
+            "debug",
+            path=file,
+            stream=stream,
+            error=error,
+            context=context,
+        )
     except ApiError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    _print_result("Solución", result)
+    if not stream:
+        _print_result("Solución", result)
 
 
 @app.command()
 def audit(
     path: Path = typer.Argument(..., help="Archivo o directorio a auditar"),
     language: str | None = typer.Option(None, "--language", "-l"),
+    stream: bool = typer.Option(False, "--stream", help="Respuesta en streaming"),
 ) -> None:
     """Audita seguridad de código."""
     try:
-        code, detected = bundle_sources(path.resolve())
-        lang = language or detected
-        result = _client().security(code, lang)
+        result = _run_v2("security", path=path, stream=stream, language=language)
     except (ApiError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    _print_result(f"Auditoría de seguridad ({path})", result)
+    if not stream:
+        _print_result(f"Auditoría de seguridad ({path})", result)
 
 
 @app.command()
 def performance(
     path: Path = typer.Argument(..., help="Archivo o directorio a analizar"),
     language: str | None = typer.Option(None, "--language", "-l"),
+    stream: bool = typer.Option(False, "--stream", help="Respuesta en streaming"),
 ) -> None:
     """Analiza performance de código."""
     try:
-        code, detected = bundle_sources(path.resolve())
-        lang = language or detected
-        result = _client().performance(code, lang)
+        result = _run_v2("performance", path=path, stream=stream, language=language)
     except (ApiError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
-    _print_result(f"Análisis de performance ({path})", result)
+    if not stream:
+        _print_result(f"Análisis de performance ({path})", result)
 
 
 @app.command()

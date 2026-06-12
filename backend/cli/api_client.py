@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from cli.config import get_api_url, get_token
@@ -106,3 +108,37 @@ class UnicornioClient:
             {"code": code, "language": language},
         )
         return data["analysis"]
+
+    def analyze_v2(self, payload: dict) -> str:
+        data = self._request("POST", "/api/v2/analyze", payload)
+        return data["result"]
+
+    def analyze_v2_stream(self, payload: dict) -> str:
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self.base_url}/api/v2/analyze/stream",
+                headers=self._headers(),
+                json=payload,
+                timeout=300,
+            ) as response:
+                if response.status_code >= 400:
+                    data = response.read().decode()
+                    raise ApiError(data or f"Error {response.status_code}")
+
+                chunks: list[str] = []
+                for line in response.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    event = json.loads(line.removeprefix("data:").strip())
+                    if event.get("error"):
+                        raise ApiError(event["error"])
+                    if text := event.get("text"):
+                        print(text, end="", flush=True)
+                        chunks.append(text)
+                    if event.get("done"):
+                        print()
+                        break
+                return "".join(chunks)
+        except httpx.HTTPError as exc:
+            raise ApiError(f"No se pudo conectar con {self.base_url}") from exc
