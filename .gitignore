@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
+.coverage
+htmlcov/
 venv/
 .env
 node_modules/
 build/
 dist/
+frontend/dist/

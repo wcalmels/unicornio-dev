@@ -1,33 +1,88 @@
-from fastapi import FastAPI
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
-app = FastAPI(title="Unicornio Dev API", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from app.config import get_settings
+from app.routers import api_router
+from app.schemas.responses import ErrorResponse
 
-@app.get("/api/v1/health")
-async def health():
-    return {"status": "healthy", "version": "1.0.0"}
+logger = logging.getLogger("unicornio")
 
-@app.post("/api/v1/architect/analyze")
-async def analyze(project_name: str, description: str):
-    return {"project": project_name, "status": "Add CLAUDE_API_KEY to enable"}
 
-@app.post("/api/v1/refactor/code")
-async def refactor(code: str, language: str = "python"):
-    return {"original": code[:50], "status": "Add CLAUDE_API_KEY to enable"}
+def create_app() -> FastAPI:
+    settings = get_settings()
+    logging.basicConfig(
+        level=logging.DEBUG if settings.DEBUG else logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        force=True,
+    )
 
-@app.post("/api/v1/debug/solve")
-async def debug(error: str, context: str = ""):
-    return {"error": error[:50], "status": "Add CLAUDE_API_KEY to enable"}
+    limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT])
 
-@app.post("/api/v1/security/audit")
-async def security(code: str):
-    return {"status": "Add CLAUDE_API_KEY to enable"}
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        logger.info("Iniciando %s v%s", settings.APP_NAME, settings.APP_VERSION)
+        yield
+        logger.info("Apagando %s", settings.APP_NAME)
 
-@app.post("/api/v1/performance/analyze")
-async def performance(code: str):
-    return {"status": "Add CLAUDE_API_KEY to enable"}
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=settings.APP_VERSION,
+        description="API de asistente de desarrollo potenciada por Claude AI.",
+        lifespan=lifespan,
+        responses={422: {"model": ErrorResponse}},
+    )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins or ["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        _: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "Datos de entrada inválidos", "errors": exc.errors()},
+        )
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        response = await call_next(request)
+        logger.info("%s %s -> %s", request.method, request.url.path, response.status_code)
+        return response
+
+    app.include_router(api_router)
+    return app
+
+
+app = create_app()
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=get_settings().DEBUG,
+    )
