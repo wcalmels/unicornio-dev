@@ -7,7 +7,7 @@ from rich.table import Table
 
 from cli.api_client import ApiError, UnicornioClient
 from cli.config import clear_token, get_api_url, get_token, save_config
-from cli.context import bundle_sources, detect_language, read_text_file
+from cli.context import bundle_sources, read_text_file
 
 app = typer.Typer(
     name="unicornio",

@@ -28,9 +28,6 @@ async def save_query(
 
 async def get_user_queries(db: AsyncSession, user_id: int, limit: int = 50) -> list[Query]:
     result = await db.execute(
-        select(Query)
-        .where(Query.user_id == user_id)
-        .order_by(Query.created_at.desc())
-        .limit(limit)
+        select(Query).where(Query.user_id == user_id).order_by(Query.created_at.desc()).limit(limit)
     )
     return list(result.scalars().all())
